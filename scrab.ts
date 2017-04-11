@@ -56,6 +56,17 @@ namespace scrab{
 	interface ICmdListGroup{[index: string]:CmdList[];}
 	abstract class CmdList{
 		private sensorvalue:number;//only for SensorGreaterThan Events
+		ifThen(bool:boolean,
+			   cmdlist: (cmdList: this) => void):this
+		{
+			return this;
+		}
+		ifThenElse(bool:boolean,
+				   cmdlistTrue: (cmdList: this) => void,
+				   cmdlistFalse:(cmdList: this) => void):this
+		{
+			return this;			
+		}
 		constructor(){};
 	}
 	class SpriteCmdList extends CmdList{
