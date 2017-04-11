@@ -53,9 +53,20 @@ namespace scrab{
 		
 		constructor() {super();}
 	}
+	type CmdFn = (...params)=>void;
+	class Cmd{
+		constructor(private fn?:CmdFn){}
+		execute():void{this.fn(this.fn.arguments)};
+	}
 	interface ICmdListGroup{[index: string]:CmdList[];}
-	abstract class CmdList{
+	abstract class CmdList extends Cmd {
 		private sensorvalue:number;//only for SensorGreaterThan Events
+		private queue:Cmd[]=[];
+		protected addCmd(cmd:Cmd){this.queue.push(cmd)}
+		public execute(): void {
+			this.queue.forEach(cmd => cmd.execute());
+		}
+		//queue methods
 		ifThen(bool:boolean,
 			   cmdlist: (cmdList: this) => void):this
 		{
@@ -67,7 +78,7 @@ namespace scrab{
 		{
 			return this;			
 		}
-		constructor(){};
+		constructor() {super();};
 	}
 	class SpriteCmdList extends CmdList{
 		constructor() {super();}
