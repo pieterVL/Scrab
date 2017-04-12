@@ -55,35 +55,93 @@ namespace scrab{
 	}
 	type CmdFn = (...params)=>void;
 	class Cmd{
-		constructor(private fn?:CmdFn){}
+		constructor(private fn:CmdFn){}
 		execute():void{this.fn(this.fn.arguments)};
 	}
 	interface ICmdListGroup{[index: string]:CmdList[];}
-	abstract class CmdList extends Cmd {
+	abstract class CmdList {
 		private sensorvalue:number;//only for SensorGreaterThan Events
 		private queue:Cmd[]=[];
+		abstract getNewCmdList():CmdList;
 		protected addCmd(cmd:Cmd){this.queue.push(cmd)}
-		public execute(): void {
+		execute(): void {
 			this.queue.forEach(cmd => cmd.execute());
 		}
 		//queue methods
 		ifThen(bool:boolean,
-			   cmdlist: (cmdList: this) => void):this
+			   cmdlistfn: (cmdList: this) => void):this
 		{
+			const newCmdList:() => CmdList = this.getNewCmdList;
+			this.addCmd(
+				new Cmd(
+					(function(bool:boolean,cmdlistfn:(cmdList: CmdList) => void){
+						return function(){
+							if(bool){
+								(function (cmdlistfn){
+									let cmdList:CmdList = newCmdList();
+									cmdlistfn(cmdList);
+									return cmdList;
+								})(cmdlistfn).execute();
+							}
+						};
+					})(bool, cmdlistfn)
+				)
+			);
 			return this;
 		}
 		ifThenElse(bool:boolean,
 				   cmdlistTrue: (cmdList: this) => void,
 				   cmdlistFalse:(cmdList: this) => void):this
 		{
+			const newCmdList:() => CmdList = this.getNewCmdList;
+			this.addCmd(
+				new Cmd(
+					(function(bool:boolean, cmdlistTruefn:(cmdList: CmdList) => void,
+											cmdlistFalsefn:(cmdList: CmdList) => void){
+						return function(){
+							if(bool){
+								(function (cmdlistfn){
+									let cmdList:CmdList = newCmdList();
+									cmdlistfn(cmdList);
+									return cmdList;
+								})(cmdlistTruefn).execute();
+							}else{
+								(function (cmdlistfn){
+									let cmdList:CmdList = newCmdList();
+									cmdlistfn(cmdList);
+									return cmdList;
+								})(cmdlistFalsefn).execute();
+							}
+						};
+					})(bool, cmdlistTrue, cmdlistFalse)
+				)
+			);
 			return this;			
 		}
-		constructor() {super();};
+		constructor() {};
 	}
 	class SpriteCmdList extends CmdList{
+		getNewCmdList(): CmdList {
+			return new SpriteCmdList();
+		}
+
+		goto(x:number,y:number){
+			this.addCmd(
+				new Cmd(
+					(function(x:number,y:number){
+						return function(){console.log("Go to x:"+x+" Y: "+y);};
+					})(x,y)
+				)
+			);
+			return this;
+		}
 		constructor() {super();}
 	}
 	class StageCmdList extends CmdList{
+		getNewCmdList(): CmdList {
+			return new StageCmdList();
+		}
+
 		constructor() {super();}
 	}
 	interface ISprites{[index: string]:Sprite;}
