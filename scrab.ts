@@ -58,6 +58,12 @@ namespace scrab{
 		constructor(private fn:CmdFn){}
 		execute():void{this.fn(this.fn.arguments)};
 	}
+	let newCmdList:() => CmdList;
+	function cmdListFromFn(cmdlistfn: (cmdList: CmdList) => void) {
+		let cmdList:CmdList = newCmdList();
+		cmdlistfn(cmdList);
+		return cmdList;
+	}
 	interface ICmdListGroup{[index: string]:CmdList[];}
 	abstract class CmdList {
 		private sensorvalue:number;//only for SensorGreaterThan Events
@@ -71,16 +77,14 @@ namespace scrab{
 		ifThen(bool:boolean,
 			   cmdlistfn: (cmdList: this) => void):this
 		{
-			const newCmdList:() => CmdList = this.getNewCmdList;
+			newCmdList = this.getNewCmdList;
 			this.addCmd(
 				new Cmd(
 					(function(bool:boolean,cmdlistfn:(cmdList: CmdList) => void){
 						return function(){
 							if(bool){
-								(function (cmdlistfn){
-									let cmdList:CmdList = newCmdList();
-									cmdlistfn(cmdList);
-									return cmdList;
+								(function (fn){
+									return cmdListFromFn(fn);
 								})(cmdlistfn).execute();
 							}
 						};
@@ -93,23 +97,19 @@ namespace scrab{
 				   cmdlistTrue: (cmdList: this) => void,
 				   cmdlistFalse:(cmdList: this) => void):this
 		{
-			const newCmdList:() => CmdList = this.getNewCmdList;
+			newCmdList = this.getNewCmdList;
 			this.addCmd(
 				new Cmd(
 					(function(bool:boolean, cmdlistTruefn:(cmdList: CmdList) => void,
 											cmdlistFalsefn:(cmdList: CmdList) => void){
 						return function(){
 							if(bool){
-								(function (cmdlistfn){
-									let cmdList:CmdList = newCmdList();
-									cmdlistfn(cmdList);
-									return cmdList;
+								(function (fn){
+									return cmdListFromFn(fn);
 								})(cmdlistTruefn).execute();
 							}else{
-								(function (cmdlistfn){
-									let cmdList:CmdList = newCmdList();
-									cmdlistfn(cmdList);
-									return cmdList;
+								(function (fn){
+									return cmdListFromFn(fn);
 								})(cmdlistFalsefn).execute();
 							}
 						};
