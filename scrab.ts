@@ -62,16 +62,20 @@ namespace scrab{
 	abstract class CmdList {
 		private sensorvalue:number;//only for SensorGreaterThan Events
 		private queue:Cmd[]=[];
-		abstract getNewCmdList():CmdList;
+		private inLoop:boolean=false;
+		private stop:boolean=false;
+		private parent = this;
+		constructor(private root = true) {};
+		abstract makeNewCmdList(root?):CmdList;		
 		protected addCmd(cmd:Cmd){this.queue.push(cmd)}
 		execute(): void {
 			this.queue.forEach(cmd => cmd.execute());
 		}
-		//queue methods
+		//queue methods	
 		ifThen(bool:boolean,
 			   cmdlistfn: (cmdList: this) => void):this
 		{
-			const newCmdList:() => CmdList = this.getNewCmdList;
+			const newCmdList:() => CmdList = this.makeNewCmdList;
 			this.addCmd(
 				new Cmd(
 					(function(bool:boolean,cmdlistfn:(cmdList: CmdList) => void){
@@ -93,7 +97,7 @@ namespace scrab{
 				   cmdlistTrue: (cmdList: this) => void,
 				   cmdlistFalse:(cmdList: this) => void):this
 		{
-			const newCmdList:() => CmdList = this.getNewCmdList;
+			const newCmdList:() => CmdList = this.makeNewCmdList;
 			this.addCmd(
 				new Cmd(
 					(function(bool:boolean, cmdlistTruefn:(cmdList: CmdList) => void,
@@ -117,12 +121,11 @@ namespace scrab{
 				)
 			);
 			return this;			
-		}
-		constructor() {};
+		}				
 	}
 	class SpriteCmdList extends CmdList{
-		getNewCmdList(): CmdList {
-			return new SpriteCmdList();
+		makeNewCmdList(root?:boolean): CmdList {
+			return new SpriteCmdList(root);
 		}
 
 		goto(x:number,y:number){
@@ -135,14 +138,14 @@ namespace scrab{
 			);
 			return this;
 		}
-		constructor() {super();}
+		constructor(root?) {super(root);}
 	}
 	class StageCmdList extends CmdList{
-		getNewCmdList(): CmdList {
-			return new StageCmdList();
+		makeNewCmdList(root?:boolean): CmdList {
+			return new StageCmdList(root);
 		}
 
-		constructor() {super();}
+		constructor(root?) {super(root);}
 	}
 	interface ISprites{[index: string]:Sprite;}
 	export let sprites:ISprites={};
