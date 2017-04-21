@@ -64,14 +64,34 @@ namespace scrab{
 		private queue:Cmd[]=[];
 		private inLoop:boolean=false;
 		private stop:boolean=false;
-		private parent = this;
+		private index:number;
 		constructor(private root = true) {};
-		abstract makeNewCmdList(root?):CmdList;		
+		abstract makeNewCmdList():CmdList;		
 		protected addCmd(cmd:Cmd){this.queue.push(cmd)}
 		execute(): void {
 			this.queue.forEach(cmd => cmd.execute());
 		}
 		//queue methods	
+		repeat(cmdlistfn: (cmdList: this) => void):this
+		{
+			let parent = this;
+			const newCmdList:() => CmdList = this.makeNewCmdList;
+			this.addCmd(
+				new Cmd(
+					(function(cmdlistfn:(cmdList: CmdList) => void){
+						parent.stop = parent.inLoop = true;
+						return function(){		
+							(function (cmdlistfn){
+								let cmdList:CmdList = newCmdList();
+								cmdlistfn(cmdList);	
+								return cmdList;
+							})(cmdlistfn).execute();
+						};						
+					})(cmdlistfn)
+				)
+			);
+			return this;
+		}	
 		ifThen(bool:boolean,
 			   cmdlistfn: (cmdList: this) => void):this
 		{
@@ -141,8 +161,8 @@ namespace scrab{
 		constructor(root?) {super(root);}
 	}
 	class StageCmdList extends CmdList{
-		makeNewCmdList(root?:boolean): CmdList {
-			return new StageCmdList(root);
+		makeNewCmdList(): CmdList {
+			return new StageCmdList();
 		}
 
 		constructor(root?) {super(root);}
