@@ -32,24 +32,24 @@ namespace scrab{
 		}
 	}
 	class Stage extends SrcabObj{
-		GreenFlag():			StageCmdList{return super.addCmdList(ScrabEvents.GreenFlag,new StageCmdList());};
-		KeyPressed(key:string):	StageCmdList{return super.addCmdList(ScrabEvents.KeyPressed,new StageCmdList(),key);};
-		Clicked():				StageCmdList{return super.addCmdList(ScrabEvents.Clicked,new StageCmdList());};
-		SceneStarts(key:string):StageCmdList{return super.addCmdList(ScrabEvents.SceneStarts,new StageCmdList(),key);};
-		IReceive(key:string):	StageCmdList{return super.addCmdList(ScrabEvents.IReceive,new StageCmdList(),key);};
+		GreenFlag():			StageCmdList{return super.addCmdList(ScrabEvents.GreenFlag,new StageCmdList(true));};
+		KeyPressed(key:string):	StageCmdList{return super.addCmdList(ScrabEvents.KeyPressed,new StageCmdList(true),key);};
+		Clicked():				StageCmdList{return super.addCmdList(ScrabEvents.Clicked,new StageCmdList(true));};
+		SceneStarts(key:string):StageCmdList{return super.addCmdList(ScrabEvents.SceneStarts,new StageCmdList(true),key);};
+		IReceive(key:string):	StageCmdList{return super.addCmdList(ScrabEvents.IReceive,new StageCmdList(true),key);};
 		SensorGreaterThan(key:string,value:number):StageCmdList
-											{return super.addCmdList(ScrabEvents.SensorGt,new StageCmdList(),key,value);};		
+											{return super.addCmdList(ScrabEvents.SensorGt,new StageCmdList(true),key,value);};		
 		constructor() {super();}
 
 	}
 	class Sprite extends SrcabObj{
-		GreenFlag():			SpriteCmdList{return super.addCmdList(ScrabEvents.GreenFlag, new SpriteCmdList());}
-		KeyPressed(key:string):	SpriteCmdList{return super.addCmdList(ScrabEvents.KeyPressed,new SpriteCmdList(),key);};
-		Clicked():				SpriteCmdList{return super.addCmdList(ScrabEvents.Clicked,new SpriteCmdList());};
-		SceneStarts(key:string):SpriteCmdList{return super.addCmdList(ScrabEvents.SceneStarts,new SpriteCmdList(),key);};
-		IReceive(key:string):	SpriteCmdList{return super.addCmdList(ScrabEvents.IReceive,new SpriteCmdList(),key);};
+		GreenFlag():			SpriteCmdList{return super.addCmdList(ScrabEvents.GreenFlag, new SpriteCmdList(true));}
+		KeyPressed(key:string):	SpriteCmdList{return super.addCmdList(ScrabEvents.KeyPressed,new SpriteCmdList(true),key);};
+		Clicked():				SpriteCmdList{return super.addCmdList(ScrabEvents.Clicked,new SpriteCmdList(true));};
+		SceneStarts(key:string):SpriteCmdList{return super.addCmdList(ScrabEvents.SceneStarts,new SpriteCmdList(true),key);};
+		IReceive(key:string):	SpriteCmdList{return super.addCmdList(ScrabEvents.IReceive,new SpriteCmdList(true),key);};
 		SensorGreaterThan(key:string,value:number):SpriteCmdList
-											 {return super.addCmdList(ScrabEvents.SensorGt,new SpriteCmdList(),key,value);};
+											 {return super.addCmdList(ScrabEvents.SensorGt,new SpriteCmdList(true),key,value);};
 		
 		constructor() {super();}
 	}
@@ -63,13 +63,22 @@ namespace scrab{
 		private sensorvalue:number;//only for SensorGreaterThan Events
 		private queue:Cmd[]=[];
 		private inLoop:boolean=false;
-		private stop:boolean=false;
-		private index:number;
-		constructor(private root = true) {};
+		private hold:boolean=false;
+		private index:number=0;
+		constructor(private root = false) {};
 		abstract makeNewCmdList():CmdList;		
 		protected addCmd(cmd:Cmd){this.queue.push(cmd)}
 		execute(): void {
-			this.queue.forEach(cmd => cmd.execute());
+			if(!this.inLoop) this.index = 0;
+			while(this.index < this.queue.length){
+				const cmd = this.queue[this.index];
+				cmd.execute();
+				if(this.hold){
+					this.hold = false;				
+					break;
+				}
+				++this.index;
+			}
 		}
 		//queue methods	
 		repeat(cmdlistfn: (cmdList: this) => void):this
@@ -78,9 +87,9 @@ namespace scrab{
 			const newCmdList:() => CmdList = this.makeNewCmdList;
 			this.addCmd(
 				new Cmd(
-					(function(cmdlistfn:(cmdList: CmdList) => void){
-						parent.stop = parent.inLoop = true;
-						return function(){		
+					(function(cmdlistfn:(cmdList: CmdList) => void){																	
+						return function(){
+							parent.hold = parent.inLoop = true;
 							(function (cmdlistfn){
 								let cmdList:CmdList = newCmdList();
 								cmdlistfn(cmdList);	
