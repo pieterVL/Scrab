@@ -1,4 +1,26 @@
 namespace scrab{
+	module MainLoop{		
+		const fps:number=25,
+			  fpsInterval:number=1000/fps;
+		let	lastTime:number=0,
+			elapsed:number;
+		const requestAnimation:(callback: FrameRequestCallback) => number =
+			window.requestAnimationFrame || 
+			window.webkitRequestAnimationFrame ||
+			window.mozRequestAnimationFrame ||
+			function(f){return setTimeout(f, 1000/fps)};
+
+		export function start():void{
+			requestAnimation(loop);
+		}
+		function loop(now:number) {
+			elapsed = now - lastTime;
+			if (elapsed > fpsInterval) {
+				lastTime = now;
+			}
+			requestAnimation(loop);
+		}
+	}
 	enum ScrabEvents{GreenFlag,KeyPressed,Clicked,SceneStarts,SensorGt,IReceive}
 	abstract class SrcabObj{		
 		protected greenFlag:CmdList[];
