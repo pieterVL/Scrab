@@ -1,26 +1,40 @@
 namespace scrab{
 	module MainLoop{		
+		let nextQueue:CmdList[]=[];	
 		const fps:number=25,
 			  fpsInterval:number=1000/fps;
-		let	lastTime:number=0,
+		let	lastTime:number,
 			elapsed:number;
 		const requestAnimation:(callback: FrameRequestCallback) => number =
 			window.requestAnimationFrame || 
 			window.webkitRequestAnimationFrame ||
 			window.mozRequestAnimationFrame ||
 			function(f){return setTimeout(f, 1000/fps)};
-
+		
+		export function addToQueue(cmdList:CmdList):void{
+			nextQueue.push(cmdList);
+		}
 		export function start():void{
+			lastTime=0;
 			requestAnimation(loop);
 		}
 		function loop(now:number) {
 			elapsed = now - lastTime;
 			if (elapsed > fpsInterval) {
 				lastTime = now;
+				executeQueue();
 			}
 			requestAnimation(loop);
 		}
+		function executeQueue():void{
+			let queue = nextQueue;
+			let a = nextQueue = [];
+			for (let i = 0; i < queue.length; ++i) {
+				queue[i].execute();
+			}
+		}
 	}
+
 	enum ScrabEvents{GreenFlag,KeyPressed,Clicked,SceneStarts,SensorGt,IReceive}
 	abstract class SrcabObj{		
 		protected greenFlag:CmdList[];
@@ -91,34 +105,34 @@ namespace scrab{
 		abstract makeNewCmdList():CmdList;		
 		protected addCmd(cmd:Cmd){this.queue.push(cmd)}
 		execute(): void {
-			if(!this.inLoop) this.index = 0;
+			if(!this.hold) {this.index = 0;}
 			while(this.index < this.queue.length){
 				const cmd = this.queue[this.index];
 				cmd.execute();
 				if(this.hold){
-					this.hold = false;				
+					if(this.root){
+						MainLoop.addToQueue(this);				
+					}
 					break;
 				}
 				++this.index;
 			}
 		}
 		//queue methods	
-		repeat(cmdlistfn: (cmdList: this) => void):this
+		repeat(cmdlistfn: (cmdList: CmdList) => void):this
 		{
 			let parent = this;
 			const newCmdList:() => CmdList = this.makeNewCmdList;
+			const cmdList:CmdList = newCmdList();
+			cmdlistfn(cmdList);
+			// console.log('repeat initialized');
 			this.addCmd(
 				new Cmd(
-					(function(cmdlistfn:(cmdList: CmdList) => void){																	
-						return function(){
-							parent.hold = parent.inLoop = true;
-							(function (cmdlistfn){
-								let cmdList:CmdList = newCmdList();
-								cmdlistfn(cmdList);	
-								return cmdList;
-							})(cmdlistfn).execute();
-						};						
-					})(cmdlistfn)
+					function(){
+						// console.log('repeat');
+						parent.hold = parent.inLoop = true;
+						cmdList.execute()
+					}
 				)
 			);
 			return this;
@@ -199,6 +213,7 @@ namespace scrab{
 		constructor(root?) {super(root);}
 	}
 	interface ISprites{[index: string]:Sprite;}
+	export const start = MainLoop.start;
 	export let sprites:ISprites={};
 	export let stage:Stage= new Stage();
 	export function addSprite(sprite: string):void{
