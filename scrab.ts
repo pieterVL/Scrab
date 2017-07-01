@@ -109,7 +109,7 @@ namespace scrab{
 		private hold:boolean=false;
 		private index:number=0;
 		constructor(private root = false) {};
-		abstract makeNewCmdList():CmdList;		
+		abstract makeNewCmdList():this;		
 		protected addCmd(cmd:Cmd){this.queue.push(cmd)}
 		execute(): void {
 			if(!this.hold) {this.index = 0;}
@@ -126,19 +126,44 @@ namespace scrab{
 			}
 		}
 		//queue methods	
-		repeat(cmdlistfn: (cmdList: CmdList) => void):this
+		repeat(cmdlistfn: (cmdList: this) => void):void
 		{
 			let parent = this;
-			const cmdList:CmdList = this.makeNewCmdList();
+			const cmdList:this = this.makeNewCmdList();
 			cmdlistfn(cmdList);
-			// console.log('repeat initialized');
 			this.addCmd(
 				new Cmd(
 					function(){
-						// console.log('repeat');
 						parent.hold = parent.inLoop = true;
 						cmdList.execute()
 					}
+				)
+			);
+		}
+		repeatTimes(times:number,cmdlistfn: (cmdList: this) => void):this
+		{
+			let parent = this;
+			const cmdList:this = this.makeNewCmdList();
+			cmdlistfn(cmdList);
+			this.addCmd(
+				new Cmd(
+					(function(times:number){
+						let repeatTimes:number;
+						return function(){					
+							if(parent.inLoop){
+								if(--repeatTimes>0){
+									cmdList.execute()									
+								}else{
+									parent.hold = parent.inLoop = false;
+								}
+							}
+							else{
+								parent.hold = parent.inLoop = true;
+								repeatTimes = times;
+								if(times>0)cmdList.execute()
+							}
+						};
+					})(times)
 				)
 			);
 			return this;
@@ -199,16 +224,16 @@ namespace scrab{
 			this.addCmd(
 				new Cmd(
 					(function(sec:number){
-						let timeToHold:number;
+						let timeTillHold:number;
 						return function(){						
 							if(parent.hold){
-								if(timeToHold<=MainLoop.getTimer()){
+								if(timeTillHold<=MainLoop.getTimer()){
 									parent.hold=false;
 								}
 							}
 							else{
 								parent.hold = true;
-								timeToHold = MainLoop.getTimer()+ sec*1000;
+								timeTillHold = MainLoop.getTimer()+ sec*1000;
 							}
 						};
 					})(sec)
