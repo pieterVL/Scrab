@@ -3,8 +3,10 @@ namespace scrab{
 		let nextQueue:CmdList[]=[];	
 		const fps:number=25,
 			  fpsInterval:number=1000/fps;
-		let	lastTime:number,
+		let	lastTime:number=0,
+			now:number=0,
 			elapsed:number;
+		let previousScrabTime:number=0;			
 		const requestAnimation:(callback: FrameRequestCallback) => number =
 			window.requestAnimationFrame || 
 			window.webkitRequestAnimationFrame ||
@@ -15,13 +17,18 @@ namespace scrab{
 			nextQueue.push(cmdList);
 		}
 		export function start():void{
-			lastTime=0;
+			if(lastTime>0){
+				previousScrabTime=now;
+			}
 			requestAnimation(loop);
+		}		
+		export function getTimer():number{
+			return now-previousScrabTime;
 		}
-		function loop(now:number) {
-			elapsed = now - lastTime;
+		function loop(timestamp:number) {
+			elapsed = (now=timestamp) - lastTime;
 			if (elapsed > fpsInterval) {
-				lastTime = now;
+				lastTime = timestamp;
 				executeQueue();
 			}
 			requestAnimation(loop);
@@ -122,8 +129,7 @@ namespace scrab{
 		repeat(cmdlistfn: (cmdList: CmdList) => void):this
 		{
 			let parent = this;
-			const newCmdList:() => CmdList = this.makeNewCmdList;
-			const cmdList:CmdList = newCmdList();
+			const cmdList:CmdList = this.makeNewCmdList();
 			cmdlistfn(cmdList);
 			// console.log('repeat initialized');
 			this.addCmd(
@@ -186,10 +192,33 @@ namespace scrab{
 				)
 			);
 			return this;			
-		}				
+		}
+		wait(sec:number):this
+		{
+			let parent = this;
+			this.addCmd(
+				new Cmd(
+					(function(sec:number){
+						let timeToHold:number;
+						return function(){						
+							if(parent.hold){
+								if(timeToHold<=MainLoop.getTimer()){
+									parent.hold=false;
+								}
+							}
+							else{
+								parent.hold = true;
+								timeToHold = MainLoop.getTimer()+ sec*1000;
+							}
+						};
+					})(sec)
+				)
+			);
+			return this;
+		}		
 	}
 	class SpriteCmdList extends CmdList{
-		makeNewCmdList(root?:boolean): CmdList {
+		makeNewCmdList(root?:boolean): SpriteCmdList {
 			return new SpriteCmdList(root);
 		}
 
@@ -206,7 +235,7 @@ namespace scrab{
 		constructor(root?) {super(root);}
 	}
 	class StageCmdList extends CmdList{
-		makeNewCmdList(): CmdList {
+		makeNewCmdList(): StageCmdList {
 			return new StageCmdList();
 		}
 
