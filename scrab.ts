@@ -43,7 +43,7 @@ namespace scrab{
 	}
 
 	enum ScrabEvents{GreenFlag,KeyPressed,Clicked,SceneStarts,SensorGt,IReceive}
-	abstract class SrcabObj{		
+	abstract class ScrabObj{		
 		protected greenFlag:CmdList[];
 		protected keyPressed:ICmdListGroup;
 		protected clicked:CmdList[];
@@ -74,25 +74,25 @@ namespace scrab{
 			return cmdList;
 		}
 	}
-	class Stage extends SrcabObj{
-		GreenFlag():			StageCmdList{return super.addCmdList(ScrabEvents.GreenFlag,new StageCmdList(true));};
-		KeyPressed(key:string):	StageCmdList{return super.addCmdList(ScrabEvents.KeyPressed,new StageCmdList(true),key);};
-		Clicked():				StageCmdList{return super.addCmdList(ScrabEvents.Clicked,new StageCmdList(true));};
-		SceneStarts(key:string):StageCmdList{return super.addCmdList(ScrabEvents.SceneStarts,new StageCmdList(true),key);};
-		IReceive(key:string):	StageCmdList{return super.addCmdList(ScrabEvents.IReceive,new StageCmdList(true),key);};
+	class Stage extends ScrabObj{
+		GreenFlag():			StageCmdList{return super.addCmdList(ScrabEvents.GreenFlag,new StageCmdList(this,true));};
+		KeyPressed(key:string):	StageCmdList{return super.addCmdList(ScrabEvents.KeyPressed,new StageCmdList(this,true),key);};
+		Clicked():				StageCmdList{return super.addCmdList(ScrabEvents.Clicked,new StageCmdList(this,true));};
+		SceneStarts(key:string):StageCmdList{return super.addCmdList(ScrabEvents.SceneStarts,new StageCmdList(this,true),key);};
+		IReceive(key:string):	StageCmdList{return super.addCmdList(ScrabEvents.IReceive,new StageCmdList(this,true),key);};
 		SensorGreaterThan(key:string,value:number):StageCmdList
-											{return super.addCmdList(ScrabEvents.SensorGt,new StageCmdList(true),key,value);};		
+											{return super.addCmdList(ScrabEvents.SensorGt,new StageCmdList(this,true),key,value);};		
 		constructor() {super();}
 
 	}
-	class Sprite extends SrcabObj{
-		GreenFlag():			SpriteCmdList{return super.addCmdList(ScrabEvents.GreenFlag, new SpriteCmdList(true));}
-		KeyPressed(key:string):	SpriteCmdList{return super.addCmdList(ScrabEvents.KeyPressed,new SpriteCmdList(true),key);};
-		Clicked():				SpriteCmdList{return super.addCmdList(ScrabEvents.Clicked,new SpriteCmdList(true));};
-		SceneStarts(key:string):SpriteCmdList{return super.addCmdList(ScrabEvents.SceneStarts,new SpriteCmdList(true),key);};
-		IReceive(key:string):	SpriteCmdList{return super.addCmdList(ScrabEvents.IReceive,new SpriteCmdList(true),key);};
+	class Sprite extends ScrabObj{
+		GreenFlag():			SpriteCmdList{return super.addCmdList(ScrabEvents.GreenFlag, new SpriteCmdList(this,true))as SpriteCmdList;}
+		KeyPressed(key:string):	SpriteCmdList{return super.addCmdList(ScrabEvents.KeyPressed,new SpriteCmdList(this,true),key)as SpriteCmdList};
+		Clicked():				SpriteCmdList{return super.addCmdList(ScrabEvents.Clicked,new SpriteCmdList(this,true))as SpriteCmdList};
+		SceneStarts(key:string):SpriteCmdList{return super.addCmdList(ScrabEvents.SceneStarts,new SpriteCmdList(this,true),key)as SpriteCmdList};
+		IReceive(key:string):	SpriteCmdList{return super.addCmdList(ScrabEvents.IReceive,new SpriteCmdList(this,true),key)as SpriteCmdList};
 		SensorGreaterThan(key:string,value:number):SpriteCmdList
-											 {return super.addCmdList(ScrabEvents.SensorGt,new SpriteCmdList(true),key,value);};
+											 {return super.addCmdList(ScrabEvents.SensorGt,new SpriteCmdList(this,true),key,value)as SpriteCmdList};
 		
 		constructor() {super();}
 	}
@@ -108,8 +108,8 @@ namespace scrab{
 		private inLoop:boolean=false;
 		private hold:boolean=false;
 		private index:number=0;
-		constructor(private root = false) {};
-		abstract makeNewCmdList():this;		
+		constructor(protected scrabObjParent:ScrabObj, private root = false) {};
+		abstract makeNewCmdList():this;
 		protected addCmd(cmd:Cmd){this.queue.push(cmd)}
 		execute(): void {
 			if(!this.hold) {this.index = 0;}
@@ -127,6 +127,11 @@ namespace scrab{
 		}
 		//queue methods	
 		repeat(cmdlistfn: (cmdList: this) => void):void
+		//queue methods
+		setVar(variable:String, value):this
+		{
+			return this;
+		}
 		{
 			let parent = this;
 			const cmdList:this = this.makeNewCmdList();
@@ -243,10 +248,11 @@ namespace scrab{
 		}		
 	}
 	class SpriteCmdList extends CmdList{
-		makeNewCmdList(root?:boolean): SpriteCmdList {
-			return new SpriteCmdList(root);
+		makeNewCmdList(root?:boolean): this {
+			return <this>new SpriteCmdList(this.scrabObjParent as Sprite, root);
 		}
 
+		constructor(parent:Sprite, root?:boolean) {super(parent, root);}
 		goto(x:number,y:number){
 			this.addCmd(
 				new Cmd(
@@ -256,15 +262,13 @@ namespace scrab{
 				)
 			);
 			return this;
-		}
-		constructor(root?) {super(root);}
+		}		
 	}
 	class StageCmdList extends CmdList{
-		makeNewCmdList(): StageCmdList {
-			return new StageCmdList();
+		makeNewCmdList(root?:boolean): this {
+			return <this>new StageCmdList(this.scrabObjParent as Stage, root);
 		}
-
-		constructor(root?) {super(root);}
+		constructor(parent:Stage, root?) {super(parent, root);}
 	}
 	interface ISprites{[index: string]:Sprite;}
 	export const start = MainLoop.start;
