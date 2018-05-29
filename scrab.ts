@@ -16,10 +16,14 @@ namespace scrab{
 		export function addToQueue(cmdList:CmdList):void{
 			nextQueue.push(cmdList);
 		}
+		export function addBroadCastToQueue(broadCastCmdList:CmdList):void{
+			queue.push(broadCastCmdList);
+		}
 		export function start():void{
 			if(lastTime>0){
 				previousScrabTime=now;
 			}
+			Events.fireGreenFlag();
 			requestAnimation(loop);
 		}		
 		export function getTimer():number{
@@ -30,11 +34,13 @@ namespace scrab{
 			if (elapsed > fpsInterval) {
 				lastTime = timestamp;
 				executeQueue();
+				Events.update();
 			}
 			requestAnimation(loop);
 		}
+		let queue:CmdList[];
 		function executeQueue():void{
-			let queue = nextQueue;
+			queue = nextQueue;
 			nextQueue = [];
 			for (let i = 0; i < queue.length; ++i) {
 				queue[i].execute();
@@ -83,51 +89,83 @@ namespace scrab{
 			return this.value1.get() < this.value2.get();
 		}
 	}
-	enum ScrabEvents{GreenFlag,KeyPressed,Clicked,SceneStarts,SensorGt,IReceive}
-	abstract class ScrabObj{		
-		protected greenFlag:CmdList[];
-		protected keyPressed:ICmdListGroup;
-		protected clicked:CmdList[];
-		protected sceneStarts:ICmdListGroup;
-		protected sensorGreaterThan:ICmdListGroup;
-		protected iReceive:ICmdListGroup;
-		constructor(costumeNumber:number=0){
-			this.greenFlag=[];
-			this.keyPressed={};
-			this.clicked=[];
-			this.sceneStarts={};
-			this.sensorGreaterThan={};
-			this.iReceive={};
+	module Events {
+		export enum Type { GreenFlag, KeyPressed, Clicked, StageClicked, SceneStarts, SensorGt, Receive }
+		
+		const greenFlag: CmdList[] = [];
+		const keyPressed: ICmdListGroup = {};
+		const sceneStarts: ICmdListGroup = {};
+		const clicked: CmdList[] = [];
+		const stageClicked: CmdList[] = [];
+		const sensorGreaterThan: ICmdListGroup = {};
+		const receive: ICmdListGroup = {};
+		
+		export function fireGreenFlag() {
+			for (let i = 0; i < greenFlag.length; ++i) {
+				MainLoop.addToQueue(greenFlag[i]);
+			}
+		}
+ 
+		let broadCastKeys = [];
 
+		export function update(){
+			broadCastKeys.length = 0;
+		};
+
+		export function fireBroadcast(key: string):void {
+			if(broadCastKeys.indexOf(key)>-1){
+				return;
+			}
+			broadCastKeys.push(key);
+
+			for (let i = 0; i < receive[key].length; ++i) {
+				const cmdList: CmdList = receive[key][i];
+				if (!cmdList.isLocked()) {
+					MainLoop.addBroadCastToQueue(cmdList);
+				}
+			}
+		}
+
+		export function registerHandler(eventType: Events.Type, cmdList: CmdList, key?: string, value?: number) {
+			switch (eventType) {
+				case Events.Type.GreenFlag:		greenFlag.push(cmdList); 		break;
+				case Events.Type.KeyPressed:	keyPressed[key].push(cmdList);	break;
+				case Events.Type.Clicked:		clicked.push(cmdList);			break;
+				case Events.Type.StageClicked:	stageClicked.push(cmdList);		break;
+				case Events.Type.SceneStarts:	sceneStarts[key].push(cmdList);	break;
+				case Events.Type.Receive:
+					receive[key] = receive[key] || [];
+					receive[key].push(cmdList);
+					break;
+				case Events.Type.SensorGt:		sensorGreaterThan[key].push(cmdList);
+					cmdList.sensorvalue = value;
+					break;
+				default: break;
+			}
+		}
+	}
+
+	abstract class ScrabObj{		
+		constructor(costumeNumber:number=0){
 			this.costumeNumber = new Variable();
 			this.costumeNumber.set(costumeNumber);
 		};
 
 		public costumeNumber:Variable;
 		
-		protected addCmdList(eventtype:ScrabEvents, cmdList: CmdList, key?:string, value?:number):CmdList{
-			switch (eventtype) {
-				case ScrabEvents.GreenFlag:		this.greenFlag.push(cmdList);		break;
-				case ScrabEvents.KeyPressed:	this.keyPressed[key].push(cmdList);	break;
-				case ScrabEvents.Clicked:		this.clicked.push(cmdList);			break;
-				case ScrabEvents.SceneStarts:	this.sceneStarts[key].push(cmdList);break;
-				case ScrabEvents.SensorGt: 		this.sensorGreaterThan[key].push(cmdList);
-					cmdList.sensorvalue=value;
-					break;
-				case ScrabEvents.IReceive:		this.iReceive.push[key](cmdList);	break;
-				default:break;
-			}
+		protected addCmdList(eventType:Events.Type, cmdList: CmdList, key?:string, value?:number):CmdList{
+			Events.registerHandler(eventType, cmdList, key, value);
 			return cmdList;
 		}
 	}
 	class Stage extends ScrabObj{
-		GreenFlag():			StageCmdList{return super.addCmdList(ScrabEvents.GreenFlag,	new StageCmdList(true))}
-		KeyPressed(key:string):	StageCmdList{return super.addCmdList(ScrabEvents.KeyPressed,new StageCmdList(true),key)}
-		Clicked():				StageCmdList{return super.addCmdList(ScrabEvents.Clicked,	new StageCmdList(true))}
-		SceneStarts(key:string):StageCmdList{return super.addCmdList(ScrabEvents.SceneStarts,new StageCmdList(true),key)}
-		IReceive(key:string):	StageCmdList{return super.addCmdList(ScrabEvents.IReceive,	new StageCmdList(true),key)}
+		GreenFlag():			StageCmdList{return super.addCmdList(Events.Type.GreenFlag,	new StageCmdList(true))}
+		KeyPressed(key:string):	StageCmdList{return super.addCmdList(Events.Type.KeyPressed,new StageCmdList(true),key)}
+		Clicked():				StageCmdList{return super.addCmdList(Events.Type.StageClicked,new StageCmdList(true))}
+		SceneStarts(key:string):StageCmdList{return super.addCmdList(Events.Type.SceneStarts,new StageCmdList(true),key)}
+		Receive(key:string):	StageCmdList{return super.addCmdList(Events.Type.Receive,	 new StageCmdList(true),key)}
 		SensorGreaterThan(key:string,value:number):StageCmdList
-											{return super.addCmdList(ScrabEvents.SensorGt,	new StageCmdList(true),key,value)}
+											{return super.addCmdList(Events.Type.SensorGt,	new StageCmdList(true),key,value)}
 
 	}
 	interface SpriteProperties{
@@ -141,13 +179,13 @@ namespace scrab{
 		vars? : [[string, any]]
 	}
 	class Sprite extends ScrabObj{
-		GreenFlag():			SpriteCmdList{return super.addCmdList(ScrabEvents.GreenFlag,  	new SpriteCmdList(this,true))		as SpriteCmdList}
-		KeyPressed(key:string):	SpriteCmdList{return super.addCmdList(ScrabEvents.KeyPressed, 	new SpriteCmdList(this,true),key)	as SpriteCmdList}
-		Clicked():				SpriteCmdList{return super.addCmdList(ScrabEvents.Clicked,		new SpriteCmdList(this,true))		as SpriteCmdList}
-		SceneStarts(key:string):SpriteCmdList{return super.addCmdList(ScrabEvents.SceneStarts,	new SpriteCmdList(this,true),key)	as SpriteCmdList}
-		IReceive(key:string):	SpriteCmdList{return super.addCmdList(ScrabEvents.IReceive,		new SpriteCmdList(this,true),key)	as SpriteCmdList}
+		GreenFlag():			SpriteCmdList{return super.addCmdList(Events.Type.GreenFlag,  	new SpriteCmdList(this,true))		as SpriteCmdList}
+		KeyPressed(key:string):	SpriteCmdList{return super.addCmdList(Events.Type.KeyPressed, 	new SpriteCmdList(this,true),key)	as SpriteCmdList}
+		Clicked():				SpriteCmdList{return super.addCmdList(Events.Type.Clicked,		new SpriteCmdList(this,true))	as SpriteCmdList}
+		SceneStarts(key:string):SpriteCmdList{return super.addCmdList(Events.Type.SceneStarts,	new SpriteCmdList(this,true),key)	as SpriteCmdList}
+		Receive(key:string):	SpriteCmdList{return super.addCmdList(Events.Type.Receive,		new SpriteCmdList(this,true),key)	as SpriteCmdList}
 		SensorGreaterThan(key:string,value:number):SpriteCmdList
-											 {return super.addCmdList(ScrabEvents.SensorGt,new SpriteCmdList(this,true),key,value)	as SpriteCmdList}
+											 {return super.addCmdList(Events.Type.SensorGt,new SpriteCmdList(this,true),key,value)	as SpriteCmdList}
 		
 		public x:Variable;
 		public y:Variable;
@@ -199,11 +237,18 @@ namespace scrab{
 	abstract class CmdList {
 		private sensorvalue:number;//only for SensorGreaterThan Events
 		private queue:Cmd[]=[];
-		private inLoop:boolean=false;
+		private locked:boolean=false;
 		private hold:boolean=false;
 		private index:number=0;
 		constructor(private root = false) {};
-
+		
+		isLocked():boolean{
+			return this.locked;
+		}
+		isOnHold():boolean{
+			return this.hold;
+		}
+		
 		abstract makeNewCmdList():this;
 		protected addCmd(fn:CmdFn){this.queue.push(new Cmd(fn))}
 		
@@ -222,11 +267,18 @@ namespace scrab{
 			}
 		}
 		//queue methods
-		setVar(variable:string, value:any):this
+		setVar(variable:string, value:Getter):this
 		{
 			if(vars[variable] === undefined)
-				vars[variable] = new Variable();
-			vars[variable].set(value);
+					vars[variable] = new Variable();
+			this.addCmd(
+					(function(variable:Variable,value:Getter){
+						return function(){
+							variable.set(value.get());
+						}
+					})(vars[variable], value)
+			);
+			
 			return this;
 		}
 		repeat(cmdlistfn: (cmdList: this) => void):this
@@ -236,7 +288,7 @@ namespace scrab{
 			cmdlistfn(cmdList);
 			this.addCmd(
 					function(){
-						parent.hold = parent.inLoop = true;
+						parent.hold = parent.locked = true;
 						cmdList.execute()
 					}
 			);
@@ -251,15 +303,15 @@ namespace scrab{
 					(function(times:number){
 						let repeatTimes:number;
 						return function(){
-							if(parent.inLoop){
+							if(parent.locked){
 								if(--repeatTimes>0){
 									cmdList.execute()
 								}else{
-									parent.hold = parent.inLoop = false;
+									parent.hold = parent.locked = false;
 								}
 							}
 							else{
-								parent.hold = parent.inLoop = true;
+								parent.hold = parent.locked = true;
 								repeatTimes = times;
 								if(times>0)cmdList.execute()
 							}
@@ -321,21 +373,20 @@ namespace scrab{
 		{
 			const parent = this;
 			this.addCmd(
-					(function(sec:number){
-						let timeTillHold:number;
-						return function(){
-							if(parent.hold){
-								if(timeTillHold<=MainLoop.getTimer()){
-									parent.hold=false;
-								}
+				(function(sec:Getter){
+					let timeTillHold:number;
+					return function(){
+						if(parent.hold){
+							if(timeTillHold<=MainLoop.getTimer()){
+								parent.hold=false;
 							}
-							else{
-								parent.hold = true;
-								timeTillHold = MainLoop.getTimer()+ sec*1000;
-							}
-						};
-					})(sec.get())
-				
+						}
+						else{
+							parent.hold = true;
+							timeTillHold = MainLoop.getTimer()+ sec.get()*1000;
+						}
+					};
+				})(sec)
 			);
 			return this;
 		}
@@ -358,7 +409,17 @@ namespace scrab{
 				
 			);
 			return this;
-		}	
+		}
+		broadCast(key: string): this {
+			this.addCmd(
+				(function (key: string) {
+					return function () {
+						Events.fireBroadcast(key);
+					}
+				})(key)
+			)
+			return this;
+		}
 	}
 	class SpriteCmdList extends CmdList{
 		makeNewCmdList(root?:boolean): this {
@@ -380,25 +441,31 @@ namespace scrab{
 			);
 			return this;
 		}
-		setVar(variable:string, value){
+		setVar(variable:string, value:Getter){
 			if(typeof this.sprite.vars[variable] === "undefined")
 				return super.setVar(variable, value);
 
-			this.sprite.vars[variable].set(value);
+			this.addCmd(
+				(function(variable:Variable,value:Getter){
+					return function(){						
+						variable.set(value.get());
+					}
+				})(this.sprite.vars[variable], value)
+			);
 			return this;
 		}		
 	}
-	class StageCmdList extends CmdList{
-		makeNewCmdList(root?:boolean): this {
+	class StageCmdList extends CmdList {
+		makeNewCmdList(root?: boolean): this {
 			return <this>new StageCmdList(root);
 		}
-		constructor(root?) {super(root);}
+		constructor(root?) { super(root); }
 	}
 	export const start = MainLoop.start;
-	export const sprites:Sprites={};
-	export const stage:Stage= new Stage();
-	export const vars:ObjVariable={};
-	export function addSprite(sprite: string, props: SpriteProperties):Sprite{
+	export const sprites: Sprites = {};
+	export const stage: Stage = new Stage();
+	export const vars: ObjVariable = {};
+	export function addSprite(sprite: string, props: SpriteProperties): Sprite {
 		return sprites[sprite] = sprites[sprite] || new Sprite(props);
 	}
 }
