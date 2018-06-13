@@ -105,25 +105,57 @@ namespace scrab{
 				MainLoop.addToQueue(greenFlag[i]);
 			}
 		}
- 
+		
+		let broadcastedCmdLists : {[key: string] : CmdList[]} = {};
 		let broadCastKeys = [];
-
+		let awaitingBroadcastKeys = [];
 		export function update(){
+			for (let i = 0; i < broadCastKeys.length; ++i) {
+				broadCastKeys[i] = undefined;
+			}
 			broadCastKeys.length = 0;
 		};
-
-		export function fireBroadcast(key: string):void {
-			if(broadCastKeys.indexOf(key)>-1){
+		export function awaitBroadcastCompleteCheck(key: string): ()=>boolean{
+			let addedCmdLists: CmdList[] = broadcastedCmdLists[key];
+				return function () {
+					let len = addedCmdLists.length;
+					while (len--)
+					if (addedCmdLists[len].isOnHold()) {
+						return false;
+					}
+					broadcastedCmdLists[key] = undefined;
+					awaitingBroadcastKeys.slice(
+						awaitingBroadcastKeys.indexOf(key),1
+					)
+					return true;
+				}
+		};
+		export function fireBroadcast(key: string, awaiting?: boolean):void {
+			if(broadcastedCmdLists[key]){
+				if(awaiting){
+					var index = broadCastKeys.indexOf(key);
+					if(index > -1){
+						broadCastKeys.splice(index, 1);
+						awaitingBroadcastKeys.push(key);
+						console.log('mag niet nu');...
+					}
+				}
 				return;
 			}
-			broadCastKeys.push(key);
+
+			if (awaiting) awaitingBroadcastKeys.push(key)
+			else		  broadCastKeys.push(key);
+
+			const addedBroadcastLists: CmdList[] = [];
 
 			for (let i = 0; i < receive[key].length; ++i) {
 				const cmdList: CmdList = receive[key][i];
 				if (!cmdList.isLocked()) {
 					MainLoop.addBroadCastToQueue(cmdList);
+					addedBroadcastLists.push(cmdList);
 				}
 			}
+			broadcastedCmdLists[key] = addedBroadcastLists;
 		}
 
 		export function registerHandler(eventType: Events.Type, cmdList: CmdList, key?: string, value?: number) {
@@ -420,6 +452,27 @@ namespace scrab{
 			)
 			return this;
 		}
+		broadCastAndWait(key:string):this
+		{
+			const parent = this;
+			let cleanIfDone: ()=>boolean;
+			this.addCmd((function (key: string) {
+				return function () {
+					console.log(parent.locked)
+					if (parent.locked) {
+						if (cleanIfDone()) {
+							parent.hold = parent.locked = false;
+						}
+					}
+					else {
+						parent.hold = parent.locked = true;
+						Events.fireBroadcast(key, true);
+						cleanIfDone = Events.awaitBroadcastCompleteCheck(key);
+					}
+				}
+			})(key))
+			return this;
+		}	
 	}
 	class SpriteCmdList extends CmdList{
 		makeNewCmdList(root?:boolean): this {
